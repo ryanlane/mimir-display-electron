@@ -1,0 +1,69 @@
+{
+  "name": "mimir-display-electron",
+  "version": "0.1.0",
+  "description": "Mimir display client (Electron + Vue 3 + Vite)",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/main/index.js",
+  "author": "",
+  "scripts": {
+    "dev": "concurrently \"npm:dev:renderer\" \"npm:dev:types\" \"npm:dev:main\" \"npm:dev:copy-workers\" \"npm:dev:electron\"",
+    "dev:copy-workers": "node scripts/copy-workers.mjs --watch",
+    "dev:renderer": "vite",
+    "dev:types": "vue-tsc --noEmit --watch",
+    "dev:main": "tsc -w --preserveWatchOutput",
+    "dev:electron": "wait-on tcp:5173 dist/main/index.js dist/main/workers/mqttWorker.cjs && cross-env VITE_DEV_SERVER_URL=http://localhost:5173/ electron .",
+    "build": "rimraf dist && tsc -p tsconfig.json && node scripts/copy-workers.mjs && vite build",
+    "build:renderer": "vite build",
+    "build:main": "tsc -p tsconfig.json",
+    "lint:typecheck": "vue-tsc --noEmit && tsc -p tsconfig.json --noEmit",
+    "preview": "vite preview",
+    "test": "vitest",
+    "postinstall": "electron-builder install-app-deps",
+    "package": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "mqtt": "^5.3.4",
+    "bonjour-service": "^1.1.1",
+    "vue": "^3.4.21",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@vitejs/plugin-vue": "^5.0.4",
+    "concurrently": "^8.2.2",
+    "electron": "^28.2.3",
+    "electron-builder": "^24.13.3",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.4.5",
+    "vite": "^5.1.4",
+  "vitest": "^1.5.2",
+  "cross-env": "^7.0.3",
+    "vue-tsc": "^2.0.7",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.mimir.display",
+    "productName": "Mimir Display",
+    "asar": true,
+    "directories": { "output": "release" },
+    "files": [
+      "dist/main/**/*",
+      "dist/preload/**/*",
+      "dist/renderer/**/*",
+      "dist/shared/**/*",
+      "package.json"
+    ],
+    "mac": { "category": "public.app-category.utilities" },
+    "win": { "target": "nsis", "requestedExecutionLevel": "asInvoker" },
+    "nsis": {
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "uninstallDisplayName": "Mimir Display"
+    },
+    "linux": { "target": "AppImage" }
+  }
+}
