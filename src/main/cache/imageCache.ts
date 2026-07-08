@@ -32,6 +32,10 @@ export interface CacheResult {
 }
 
 const CACHE_DIR = path.join(app.getPath('userData'), 'cache')
+
+/** Cache directory root — the mimir-cache:// protocol handler resolves
+ * (and confines) requests to files inside this directory. */
+export function getCacheDir(): string { return CACHE_DIR }
 const META_EXT = '.json'
 
 async function ensureDir() { await fs.mkdir(CACHE_DIR, { recursive: true }) }

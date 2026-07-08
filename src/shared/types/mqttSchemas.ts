@@ -19,7 +19,10 @@ export const AssignCommandSchema = z.object({
       url: z.string().url(),
       content_type: z.string().optional(),
       etag: z.string().optional(),
-      ttl_seconds: z.number().int().positive().optional()
+      ttl_seconds: z.number().int().positive().optional(),
+      // Video playback hints (ignored for images). Defaults: loop, muted.
+      loop: z.boolean().optional(),
+      muted: z.boolean().optional()
     }),
     metadata: z.record(z.any()).optional()
   }),

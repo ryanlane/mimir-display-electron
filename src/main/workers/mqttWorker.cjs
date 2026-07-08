@@ -32,7 +32,16 @@ let client
 let stopped = false
 const seenAssignments = new Map() // key: assignment_id, value: sequence (or true)
 const startTs = Date.now()
-const capabilities = { image_formats: ['png', 'jpg'] }
+// Chromium <img> decodes and animates webp/gif natively. <video>: stock
+// Electron ships WITHOUT proprietary codecs — H.264/AAC mp4 will NOT play
+// (MediaError code 4). Royalty-free VP8/VP9/AV1 in WebM work fully, so
+// sources must deliver webm to this client.
+const capabilities = {
+  image_formats: ['png', 'jpg', 'webp', 'gif'],
+  supports_animation: true,
+  supports_video: true,
+  video_formats: ['webm']
+}
 let pendingRegister = null // { reply_to }
 
 function log(level, message) { parentPort.postMessage({ type: 'log', level, message }) }
@@ -130,7 +139,10 @@ function handleValidatedCommand(cmd) {
 function normalizeDelivery(cmd) {
   const d = cmd?.content?.delivery
   if (!d) return { url: '' }
-  return { url: d.url, contentType: d.content_type, etag: d.etag, ttlSeconds: d.ttl_seconds }
+  return {
+    url: d.url, contentType: d.content_type, etag: d.etag, ttlSeconds: d.ttl_seconds,
+    loop: d.loop, muted: d.muted
+  }
 }
 
 parentPort.on('message', (msg) => {

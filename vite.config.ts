@@ -23,6 +23,11 @@ export default defineConfig({
     outDir: path.resolve(__dirname, 'dist/renderer'),
     emptyOutDir: false // don't let Vite try to clean outside its root
   },
+  // Vitest: the Vite root points at src/renderer for dev-server ergonomics,
+  // but tests live across src/ (shared helpers included).
+  test: {
+    dir: path.resolve(__dirname, 'src')
+  },
   resolve: {
     alias: {
       '@shared': path.resolve(__dirname, 'src/shared'),

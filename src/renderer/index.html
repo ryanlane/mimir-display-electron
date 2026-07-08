@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https: http:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: http: https:;" />
+    <!-- img-src mimir-cache: — cached content is served by the custom protocol
+         (file:// subresources are hard-blocked on http-served pages).
+         media-src http/https — video streams directly from LAN sources; the main
+         process enforces the URL allowlist before anything reaches this page. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: mimir-cache: https: http:; media-src 'self' http: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: http: https:;" />
     <title>Mimir Display</title>
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   </head>
