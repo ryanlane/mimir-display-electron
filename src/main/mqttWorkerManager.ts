@@ -46,6 +46,7 @@ export interface SendAckMessage { type: 'ack'; assignmentId: string; ok?: boolea
 export interface SendRenderedMessage { type: 'rendered'; assignmentId: string; durationMs?: number }
 export interface SendErrorMessage { type: 'error'; assignmentId?: string; errorType: string; message: string }
 export interface SendPresenceMessage { type: 'presence'; payload: any }
+export interface UpdateCapabilitiesMessage { type: 'update_capabilities'; capabilities: Record<string, unknown> }
 export interface WorkerShutdownMessage { type: 'shutdown' }
 
 export type MqttInboundMessage =
@@ -53,6 +54,7 @@ export type MqttInboundMessage =
   | SendRenderedMessage
   | SendErrorMessage
   | SendPresenceMessage
+  | UpdateCapabilitiesMessage
   | WorkerShutdownMessage
 
 export class MqttWorkerManager extends EventEmitter {

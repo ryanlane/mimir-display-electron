@@ -72,6 +72,23 @@ function createWindow() {
     win.webContents.openDevTools({ mode: 'detach' })
   }
 
+  // Report the actual content size to the server — dynamic displays must
+  // receive renders matching their live window size, not the size they had
+  // at registration. Debounced: resize fires continuously during a drag.
+  let resizeTimer: NodeJS.Timeout | null = null
+  const reportResolution = () => {
+    if (!win || !mqttManager) return
+    const [w, h] = win.getContentSize()
+    mqttManager.send({ type: 'update_capabilities', capabilities: { resolution: [w, h] } })
+  }
+  win.on('resize', () => {
+    if (resizeTimer) clearTimeout(resizeTimer)
+    resizeTimer = setTimeout(reportResolution, 750)
+  })
+  // Initial report once the window exists (worker may still be connecting;
+  // it also announces capabilities on connect, so this is belt-and-braces).
+  setTimeout(reportResolution, 2000)
+
   win.on('closed', () => {
     win = null
   })

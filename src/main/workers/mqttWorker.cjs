@@ -54,6 +54,7 @@ function connect() {
     log('info', 'MQTT connected')
     parentPort.postMessage({ type: 'worker_up' })
     client.subscribe(`mimir/${displayId}/cmd`, { qos: 1 })
+    publishStatus(displayId)
     // presence interval (optional baseline)
     setInterval(() => { if (!stopped) sendPresence(displayId) }, 60000).unref()
   })
@@ -145,6 +146,20 @@ function normalizeDelivery(cmd) {
   }
 }
 
+function publishStatus(displayId) {
+  // Retained status mirrors the Pi client convention — the server's
+  // presence service reads capabilities (resolution etc.) from here and
+  // syncs them to the display's DB record.
+  try {
+    client.publish(`mimir/${displayId}/status`, JSON.stringify({
+      status: 'online',
+      device_id: displayId,
+      capabilities,
+      timestamp: new Date().toISOString()
+    }), { qos: 1, retain: true })
+  } catch (e) { parentPort.postMessage({ type: 'error', error: 'status_publish_fail: ' + e.message }) }
+}
+
 parentPort.on('message', (msg) => {
   const { displayId } = workerData
   switch (msg.type) {
@@ -152,6 +167,15 @@ parentPort.on('message', (msg) => {
     case 'rendered': publishEvent(displayId, { type: 'rendered', assignment_id: msg.assignmentId, duration_ms: msg.durationMs }); break
     case 'error': publishEvent(displayId, { type: 'error', assignment_id: msg.assignmentId, error_type: msg.errorType, message: msg.message }); break
     case 'presence': publishEvent(displayId, { type: 'presence', ...msg.payload }); break
+    case 'update_capabilities':
+      // Dynamic capability update (e.g. window resized) — merge and
+      // immediately re-announce so the server renders at the new size.
+      Object.assign(capabilities, msg.capabilities || {})
+      if (client && client.connected) {
+        publishStatus(displayId)
+        sendPresence(displayId)
+      }
+      break
     case 'shutdown': stopped = true; try { client.end(true) } catch {}; break
   }
 })
