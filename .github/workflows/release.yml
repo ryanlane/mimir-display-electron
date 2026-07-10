@@ -17,15 +17,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS — Apple Silicon (M1/M2)
+          # macOS — Apple Silicon (M1/M2/M3)
           - os: macos-latest
             label: macOS arm64
             eb_flags: --mac --arm64
-
-          # macOS — Intel
-          - os: macos-13
-            label: macOS x64
-            eb_flags: --mac --x64
 
           # Windows — NSIS installer
           - os: windows-latest
