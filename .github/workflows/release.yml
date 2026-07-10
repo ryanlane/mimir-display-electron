@@ -22,10 +22,10 @@ jobs:
             label: macOS arm64
             eb_flags: --mac --arm64
 
-          # Windows — NSIS installer
+          # Windows — NSIS installer (x64 + ia32 built in one job)
           - os: windows-latest
             label: Windows
-            eb_flags: --win
+            eb_flags: --win --x64 --ia32
 
           # Linux — AppImage
           - os: ubuntu-latest
