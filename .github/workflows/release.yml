@@ -52,18 +52,25 @@ jobs:
         run: npm run build
 
       - name: Package with electron-builder
-        run: npx electron-builder ${{ matrix.eb_flags }} --publish never
+        shell: bash
+        run: |
+          # Unset any empty signing vars so electron-builder doesn't try to
+          # resolve them as certificate paths.
+          [ -z "$CSC_LINK" ]         && unset CSC_LINK
+          [ -z "$CSC_KEY_PASSWORD" ] && unset CSC_KEY_PASSWORD
+          [ -z "$WIN_CSC_LINK" ]         && unset WIN_CSC_LINK
+          [ -z "$WIN_CSC_KEY_PASSWORD" ] && unset WIN_CSC_KEY_PASSWORD
+          [ -z "$APPLE_ID" ]                    && unset APPLE_ID
+          [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ] && unset APPLE_APP_SPECIFIC_PASSWORD
+          [ -z "$APPLE_TEAM_ID" ]               && unset APPLE_TEAM_ID
+          npx electron-builder ${{ matrix.eb_flags }} --publish never
         env:
-          # ── macOS code signing (optional) ─────────────────────────────────
-          # Leave these secrets blank to produce an unsigned .dmg (works, but
-          # macOS will show a Gatekeeper warning on first launch).
+          CSC_IDENTITY_AUTO_DISCOVERY: false
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          # Notarization (requires Apple Developer account)
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # ── Windows code signing (optional) ───────────────────────────────
           WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
 
