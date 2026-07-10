@@ -72,6 +72,19 @@ export const ReadyCommandSchema = z.object({
   timestamp
 })
 
+/** Sent by the server after a user claims the display's pairing code. */
+export const FinalizeRegistrationCommandSchema = z.object({
+  type: z.literal('finalize_registration'),
+  assignment_id: assignmentId.optional(),
+  display_id: z.string().optional(),
+  registration_key: z.string().optional(),
+  display_name: z.string().optional(),
+  display_location: z.string().optional(),
+  display_orientation: z.string().optional(),
+  source: z.string().optional(),
+  timestamp
+})
+
 export const AnyCommandSchema = z.union([
   AssignCommandSchema,
   DisplayImageCommandSchema,
@@ -79,7 +92,8 @@ export const AnyCommandSchema = z.union([
   SetSceneCommandSchema,
   ClearSceneCommandSchema,
   RegisterCommandSchema,
-  ReadyCommandSchema
+  ReadyCommandSchema,
+  FinalizeRegistrationCommandSchema
 ])
 
 export type AssignCommand = z.infer<typeof AssignCommandSchema>
@@ -89,6 +103,7 @@ export type SetSceneCommand = z.infer<typeof SetSceneCommandSchema>
 export type ClearSceneCommand = z.infer<typeof ClearSceneCommandSchema>
 export type RegisterCommand = z.infer<typeof RegisterCommandSchema>
 export type ReadyCommand = z.infer<typeof ReadyCommandSchema>
+export type FinalizeRegistrationCommand = z.infer<typeof FinalizeRegistrationCommandSchema>
 export type AnyCommand = z.infer<typeof AnyCommandSchema>
 
 // Event Schemas (Display -> Service)

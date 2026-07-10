@@ -22,5 +22,40 @@ contextBridge.exposeInMainWorld('mimirDisplay', {
   // and the optional debug screenshot hook.
   contentReady: (payload) => {
     ipcRenderer.send('display:contentReady', payload)
+  },
+  // Pairing flow
+  getPairingInfo: () => ipcRenderer.invoke('pairing:getInfo'),
+  onPairingStatus: (cb) => {
+    const listener = (_e, payload) => cb(payload)
+    ipcRenderer.on('display:pairingStatus', listener)
+    return () => ipcRenderer.removeListener('display:pairingStatus', listener)
+  },
+  onPaired: (cb) => {
+    const listener = (_e, payload) => cb(payload)
+    ipcRenderer.on('display:paired', listener)
+    return () => ipcRenderer.removeListener('display:paired', listener)
+  },
+
+  // Admin panel — parity with the native Windows client's menu
+  admin: {
+    getStatus: () => ipcRenderer.invoke('admin:getStatus'),
+    getTraffic: () => ipcRenderer.invoke('admin:getTraffic'),
+    onTraffic: (cb) => {
+      const listener = (_e, entry) => cb(entry)
+      ipcRenderer.on('display:mqttTraffic', listener)
+      return () => ipcRenderer.removeListener('display:mqttTraffic', listener)
+    },
+    onMqttState: (cb) => {
+      const listener = (_e, payload) => cb(payload)
+      ipcRenderer.on('display:mqttState', listener)
+      return () => ipcRenderer.removeListener('display:mqttState', listener)
+    },
+    clearCache: () => ipcRenderer.invoke('admin:clearCache'),
+    openLogs: () => ipcRenderer.invoke('admin:openLogs'),
+    resetPairing: () => ipcRenderer.invoke('admin:resetPairing'),
+    toggleFullscreen: () => ipcRenderer.invoke('admin:toggleFullscreen'),
+    quit: () => ipcRenderer.invoke('admin:quit'),
+    getSettings: () => ipcRenderer.invoke('admin:getSettings'),
+    saveSettings: (settings) => ipcRenderer.invoke('admin:saveSettings', settings)
   }
 })

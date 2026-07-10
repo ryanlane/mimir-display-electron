@@ -25,7 +25,7 @@ async function loadSchemas() {
 }
 
 /**
- * workerData: { brokerUrl, displayId, logLevel }
+ * workerData: { brokerUrl, displayId, logLevel, mqttUsername?, mqttPassword?, pairCode?, apiUrl?, displayName? }
  */
 
 let client
@@ -44,22 +44,89 @@ const capabilities = {
 }
 let pendingRegister = null // { reply_to }
 
+// Pairing state — cleared after finalize_registration is received
+let isPairing = Boolean(workerData.pairCode)
+let pairRepublishTimer = null
+
 function log(level, message) { parentPort.postMessage({ type: 'log', level, message }) }
 
+// MQTT monitor feed — mirrors the native Windows client's MessageReceived
+// event: direction + topic + a payload snippet for the admin panel.
+function traffic(direction, topic, payload) {
+  try {
+    const text = typeof payload === 'string' ? payload : JSON.stringify(payload)
+    parentPort.postMessage({
+      type: 'mqtt_traffic',
+      direction, // 'sent' | 'received'
+      topic,
+      snippet: text.length > 400 ? text.slice(0, 400) + '…' : text,
+      ts: Date.now()
+    })
+  } catch { /* monitoring must never break messaging */ }
+}
+
+function publishPairRequest() {
+  const { displayId, pairCode, displayName } = workerData
+  const msg = {
+    device_id: displayId,
+    code: pairCode,
+    capabilities,
+    metadata: {
+      runtime: 'electron',
+      version: '0.1.0',
+      ...(displayName ? { name: displayName } : {})
+    },
+    reply_to: `mimir/${displayId}/pair/ack`
+  }
+  try {
+    const body = JSON.stringify(msg)
+    client.publish('mimir/registry/pair', body, { qos: 1 })
+    traffic('sent', 'mimir/registry/pair', body)
+    log('info', `pair_request_published code=${pairCode}`)
+  } catch (e) {
+    parentPort.postMessage({ type: 'error', error: 'pair_publish_fail: ' + e.message })
+  }
+}
+
 function connect() {
-  const { brokerUrl, displayId } = workerData
-  client = mqtt.connect(brokerUrl)
+  const { brokerUrl, displayId, mqttUsername, mqttPassword } = workerData
+  // Credentials for brokers with auth enabled (prod mosquitto). Absent for
+  // open brokers (dev).
+  const opts = {}
+  if (mqttUsername) { opts.username = mqttUsername; opts.password = mqttPassword || '' }
+  client = mqtt.connect(brokerUrl, opts)
 
   client.on('connect', () => {
     log('info', 'MQTT connected')
     parentPort.postMessage({ type: 'worker_up' })
+    parentPort.postMessage({ type: 'mqtt_state', connected: true })
     client.subscribe(`mimir/${displayId}/cmd`, { qos: 1 })
+
+    if (isPairing) {
+      // Subscribe to pair ack topic and announce our code
+      client.subscribe(`mimir/${displayId}/pair/ack`, { qos: 1 })
+      publishPairRequest()
+      // Re-announce every 5 minutes in case the server restarts
+      pairRepublishTimer = setInterval(() => {
+        if (!stopped && isPairing) publishPairRequest()
+      }, 5 * 60 * 1000)
+      pairRepublishTimer.unref()
+    }
+
     publishStatus(displayId)
-    // presence interval (optional baseline)
     setInterval(() => { if (!stopped) sendPresence(displayId) }, 60000).unref()
   })
 
-  client.on('message', (_topic, payload) => {
+  client.on('message', (topic, payload) => {
+    const { displayId } = workerData
+    traffic('received', topic, payload.toString())
+
+    // Handle pair ack on the dedicated ack topic
+    if (isPairing && topic === `mimir/${displayId}/pair/ack`) {
+      handlePairAck(payload)
+      return
+    }
+
     let parsed
     try { parsed = JSON.parse(payload.toString()) } catch (e) { return parentPort.postMessage({ type: 'error', error: 'invalid_json: ' + e.message }) }
     const result = safeParseCommand(parsed)
@@ -69,11 +136,18 @@ function connect() {
   })
 
   client.on('error', (err) => log('error', 'mqtt_error ' + err.message))
-  client.on('close', () => { log('warn', 'mqtt_disconnected'); if (!stopped) setTimeout(connect, 3000).unref() })
+  client.on('close', () => { log('warn', 'mqtt_disconnected'); parentPort.postMessage({ type: 'mqtt_state', connected: false }); if (!stopped) setTimeout(connect, 3000).unref() })
+}
+
+function handlePairAck(payload) {
+  let data
+  try { data = JSON.parse(payload.toString()) } catch { return }
+  log('info', `pair_ack status=${data.status} message=${data.message || ''}`)
+  parentPort.postMessage({ type: 'pairing_ack', status: data.status, message: data.message })
 }
 
 function publishEventTopic(topic, evt) {
-  try { evt.timestamp = new Date().toISOString(); client.publish(topic, JSON.stringify(evt), { qos: 1 }) }
+  try { evt.timestamp = new Date().toISOString(); const body = JSON.stringify(evt); client.publish(topic, body, { qos: 1 }); traffic('sent', topic, body) }
   catch (e) { parentPort.postMessage({ type: 'error', error: 'publish_fail: ' + e.message }) }
 }
 
@@ -126,6 +200,19 @@ function handleValidatedCommand(cmd) {
       })
       publishEvent(workerData.displayId, { type: 'ack', assignment_id: assignmentId, ok: true, message: 'register_replied' })
       break
+    case 'finalize_registration':
+      // Pairing complete — stop re-announcing and notify main thread
+      isPairing = false
+      if (pairRepublishTimer) { clearInterval(pairRepublishTimer); pairRepublishTimer = null }
+      parentPort.postMessage({
+        type: 'pairing_complete',
+        displayId: cmd.display_id,
+        registrationKey: cmd.registration_key,
+        displayName: cmd.display_name,
+        displayLocation: cmd.display_location
+      })
+      publishEvent(workerData.displayId, { type: 'ack', assignment_id: assignmentId, ok: true, message: 'finalize_registration_ack' })
+      break
     case 'set_scene':
     case 'clear_scene':
     case 'ready':
@@ -151,12 +238,14 @@ function publishStatus(displayId) {
   // presence service reads capabilities (resolution etc.) from here and
   // syncs them to the display's DB record.
   try {
-    client.publish(`mimir/${displayId}/status`, JSON.stringify({
+    const body = JSON.stringify({
       status: 'online',
       device_id: displayId,
       capabilities,
       timestamp: new Date().toISOString()
-    }), { qos: 1, retain: true })
+    })
+    client.publish(`mimir/${displayId}/status`, body, { qos: 1, retain: true })
+    traffic('sent', `mimir/${displayId}/status`, body)
   } catch (e) { parentPort.postMessage({ type: 'error', error: 'status_publish_fail: ' + e.message }) }
 }
 

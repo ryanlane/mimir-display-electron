@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Needed to create the GitHub Release and upload assets
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS — Apple Silicon (M1/M2)
+          - os: macos-latest
+            label: macOS arm64
+            eb_flags: --mac --arm64
+
+          # macOS — Intel
+          - os: macos-13
+            label: macOS x64
+            eb_flags: --mac --x64
+
+          # Windows — NSIS installer
+          - os: windows-latest
+            label: Windows
+            eb_flags: --win
+
+          # Linux — AppImage
+          - os: ubuntu-latest
+            label: Linux
+            eb_flags: --linux
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build renderer + main
+        run: npm run build
+
+      - name: Package with electron-builder
+        run: npx electron-builder ${{ matrix.eb_flags }} --publish never
+        env:
+          # ── macOS code signing (optional) ─────────────────────────────────
+          # Leave these secrets blank to produce an unsigned .dmg (works, but
+          # macOS will show a Gatekeeper warning on first launch).
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          # Notarization (requires Apple Developer account)
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # ── Windows code signing (optional) ───────────────────────────────
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      - name: Upload artifacts to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          generate_release_notes: true
+          files: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.zip
+            release/*.deb

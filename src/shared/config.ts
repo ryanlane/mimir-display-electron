@@ -4,7 +4,11 @@ import { loadEnv } from './env.js'
 const schema = z.object({
   NODE_ENV: z.string().default('development'),
   MIMIR_DISPLAY_ID: z.string().min(1).default('electron-display-01'),
+  MIMIR_DISPLAY_NAME: z.string().optional(),
   MIMIR_MQTT_URL: z.string().url().default('mqtt://localhost:1883'),
+  MIMIR_MQTT_USERNAME: z.string().optional(),
+  MIMIR_MQTT_PASSWORD: z.string().optional(),
+  MIMIR_API_URL: z.string().url().optional(),
   MIMIR_PRESENCE_INTERVAL_S: z.coerce.number().int().min(10).max(3600).default(60),
   MIMIR_CACHE_MAX_BYTES: z.coerce.number().int().min(1_000_000).max(500_000_000).default(50_000_000),
   MIMIR_CACHE_MAX_IMAGE_BYTES: z.coerce.number().int().min(100_000).max(50_000_000).default(5_000_000),
@@ -19,7 +23,11 @@ type RawConfig = z.infer<typeof schema>
 export interface AppConfig {
   env: string
   displayId: string
+  displayName: string | undefined
   mqttUrl: string
+  mqttUsername: string | undefined
+  mqttPassword: string | undefined
+  apiUrl: string | undefined
   presenceIntervalMs: number
   cacheMaxBytes: number
   cacheMaxImageBytes: number
@@ -38,7 +46,11 @@ export function getConfig(): AppConfig {
   cached = {
     env: parsed.NODE_ENV,
     displayId: parsed.MIMIR_DISPLAY_ID,
+    displayName: parsed.MIMIR_DISPLAY_NAME,
     mqttUrl: parsed.MIMIR_MQTT_URL,
+    mqttUsername: parsed.MIMIR_MQTT_USERNAME,
+    mqttPassword: parsed.MIMIR_MQTT_PASSWORD,
+    apiUrl: parsed.MIMIR_API_URL,
     presenceIntervalMs: parsed.MIMIR_PRESENCE_INTERVAL_S * 1000,
     cacheMaxBytes: parsed.MIMIR_CACHE_MAX_BYTES,
     cacheMaxImageBytes: parsed.MIMIR_CACHE_MAX_IMAGE_BYTES,
