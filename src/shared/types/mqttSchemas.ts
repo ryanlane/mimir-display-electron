@@ -2,7 +2,10 @@ import { z } from 'zod'
 
 // Base fields
 const assignmentId = z.string().min(1).describe('Unique assignment id')
-const timestamp = z.string().datetime().optional()
+// offset: true — the API emits Python isoformat() timestamps ("+00:00"),
+// which zod's default datetime() (Z-only) rejects, silently dropping every
+// server command that carries a timestamp.
+const timestamp = z.string().datetime({ offset: true }).optional()
 const sequence = z.number().int().nonnegative().optional()
 
 // Command Schemas (Service -> Display)
