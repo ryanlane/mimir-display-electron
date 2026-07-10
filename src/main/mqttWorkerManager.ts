@@ -13,6 +13,7 @@ export interface MqttWorkerConfig {
   pairCode?: string
   apiUrl?: string
   displayName?: string
+  regToken?: string
 }
 
 export interface AssignmentEvent {

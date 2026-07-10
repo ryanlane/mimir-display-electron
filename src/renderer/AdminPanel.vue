@@ -48,6 +48,33 @@
 
       <!-- SETTINGS -->
       <section v-else-if="tab === 'Settings'" class="body">
+
+        <!-- Provision bundle paste -->
+        <div class="provision-box">
+          <button class="provision-toggle" @click="provisionOpen = !provisionOpen">
+            <span>{{ provisionOpen ? '▾' : '▸' }} Paste Provision Bundle</span>
+            <span class="provision-hint">Copy from the server's Add Display screen</span>
+          </button>
+          <div v-if="provisionOpen" class="provision-body">
+            <textarea
+              v-model="provisionText"
+              class="provision-textarea"
+              placeholder="Paste the base64 token from the server's Add Display screen…"
+              rows="4"
+              spellcheck="false"
+            />
+            <div class="btn-row">
+              <button class="btn primary" :disabled="!provisionText.trim()" @click="applyAndRestart">
+                Apply &amp; Restart
+              </button>
+              <button class="btn" :disabled="!provisionText.trim()" @click="applyProvision">
+                Fill Fields Only
+              </button>
+              <span v-if="provisionApplied" class="provision-ok">✓ Applied — review below then Save</span>
+            </div>
+          </div>
+        </div>
+
         <p class="hint">Saved settings apply as defaults — explicit environment variables always win.
           Saving restarts the display.</p>
         <label class="field"><span>Display name</span>
@@ -115,6 +142,85 @@ const confirmReset = ref(false)
 const confirmQuit = ref(false)
 const monitorEl = ref<HTMLElement | null>(null)
 const infoOverlay = ref(props.infoOverlay)
+
+// Provision bundle
+const provisionOpen = ref(false)
+const provisionText = ref('')
+const provisionApplied = ref(false)
+
+function parseKV(text: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const raw of text.split('\n')) {
+    const line = raw.trim()
+    if (!line || line.startsWith('#')) continue
+    const eq = line.indexOf('=')
+    if (eq < 0) continue
+    out[line.slice(0, eq).trim()] = line.slice(eq + 1).trim()
+  }
+  return out
+}
+
+interface ProvisionBundle {
+  v?: number
+  platform_url?: string
+  mqtt_host?: string
+  mqtt_port?: number
+  mqtt_username?: string
+  mqtt_password?: string
+  reg_token?: string
+}
+
+function decodeBundle(text: string): ProvisionBundle | null {
+  const t = text.trim()
+  // Try base64 JSON first (the server's canonical format)
+  try {
+    const json = atob(t)
+    return JSON.parse(json) as ProvisionBundle
+  } catch { /* fall through */ }
+  // Fall back to KEY=VALUE env-style block
+  const kv = parseKV(t)
+  if (Object.keys(kv).length === 0) return null
+  return {
+    platform_url: kv.PLATFORM_URL,
+    mqtt_host: kv.MQTT_BROKER_HOST,
+    mqtt_port: kv.MQTT_BROKER_PORT ? Number(kv.MQTT_BROKER_PORT) : undefined,
+    mqtt_username: kv.MQTT_USERNAME,
+    mqtt_password: kv.MQTT_PASSWORD,
+  }
+}
+
+function applyProvision() {
+  const bundle = decodeBundle(provisionText.value)
+  if (!bundle) return
+  if (bundle.mqtt_host) {
+    const port = bundle.mqtt_port || 1883
+    form.value.mqttUrl = `mqtt://${bundle.mqtt_host}:${port}`
+  }
+  if (bundle.mqtt_username) form.value.mqttUsername = bundle.mqtt_username
+  if (bundle.mqtt_password) form.value.mqttPassword = bundle.mqtt_password
+  if (bundle.platform_url) form.value.apiUrl = bundle.platform_url
+  // Store reg_token for use during pairing (not shown in UI)
+  if (bundle.reg_token) form.value._regToken = bundle.reg_token
+  provisionText.value = ''
+  provisionOpen.value = false
+  provisionApplied.value = true
+  setTimeout(() => { provisionApplied.value = false }, 4000)
+}
+
+async function applyAndRestart() {
+  const bundle = decodeBundle(provisionText.value)
+  if (!bundle) return
+  const mqttUrl = bundle.mqtt_host
+    ? `mqtt://${bundle.mqtt_host}:${bundle.mqtt_port || 1883}`
+    : form.value.mqttUrl
+  await admin?.applyProvision({
+    mqttUrl,
+    mqttUsername: bundle.mqtt_username,
+    mqttPassword: bundle.mqtt_password,
+    apiUrl: bundle.platform_url,
+    regToken: bundle.reg_token,
+  })
+}
 
 const admin = (window as any).mimirDisplay?.admin
 
@@ -263,4 +369,29 @@ kbd { font-size: 10px; background: rgba(255,255,255,0.1); border-radius: 3px; pa
 .action-list { display: flex; flex-direction: column; gap: 14px; }
 .action { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .action .sub { margin-top: 2px; }
+
+.provision-box {
+  border: 1px solid rgba(55, 207, 110, 0.2);
+  border-radius: 9px;
+  background: rgba(55, 207, 110, 0.04);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.provision-toggle {
+  width: 100%; display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px; background: none; border: none; cursor: pointer;
+  color: #37cf6e; font-size: 13px; font-weight: 600; text-align: left;
+}
+.provision-toggle:hover { background: rgba(55, 207, 110, 0.07); }
+.provision-hint { font-size: 11px; color: #8b96a3; font-weight: 400; }
+.provision-body { padding: 0 14px 14px; }
+.provision-textarea {
+  width: 100%; box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px; color: #cfe3d4; padding: 8px 10px;
+  font-family: ui-monospace, monospace; font-size: 12px; resize: vertical;
+  margin-bottom: 10px;
+}
+.provision-textarea:focus { outline: none; border-color: #37cf6e; }
+.provision-ok { font-size: 12.5px; color: #37cf6e; font-weight: 600; align-self: center; }
 </style>

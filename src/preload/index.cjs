@@ -56,6 +56,7 @@ contextBridge.exposeInMainWorld('mimirDisplay', {
     toggleFullscreen: () => ipcRenderer.invoke('admin:toggleFullscreen'),
     quit: () => ipcRenderer.invoke('admin:quit'),
     getSettings: () => ipcRenderer.invoke('admin:getSettings'),
-    saveSettings: (settings) => ipcRenderer.invoke('admin:saveSettings', settings)
+    saveSettings: (settings) => ipcRenderer.invoke('admin:saveSettings', settings),
+    applyProvision: (bundle) => ipcRenderer.invoke('admin:applyProvision', bundle)
   }
 })

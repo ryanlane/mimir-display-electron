@@ -66,10 +66,11 @@ function traffic(direction, topic, payload) {
 }
 
 function publishPairRequest() {
-  const { displayId, pairCode, displayName } = workerData
+  const { displayId, pairCode, displayName, regToken } = workerData
   const msg = {
     device_id: displayId,
     code: pairCode,
+    ...(regToken ? { reg_token: regToken } : {}),
     capabilities,
     metadata: {
       runtime: 'electron',

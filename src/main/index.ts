@@ -138,7 +138,8 @@ app.whenReady().then(async () => {
     displayId: cfg.displayId,
     logLevel: cfg.logLevel,
     ...(cfg.mqttUsername ? { mqttUsername: cfg.mqttUsername, mqttPassword: cfg.mqttPassword } : {}),
-    ...(pairCode ? { pairCode, apiUrl: cfg.apiUrl, displayName: cfg.displayName } : {})
+    ...(pairCode ? { pairCode, apiUrl: cfg.apiUrl, displayName: cfg.displayName } : {}),
+    ...(process.env.MIMIR_REG_TOKEN ? { regToken: process.env.MIMIR_REG_TOKEN } : {})
   })
   // mDNS advertisement (optional)
   startMdns(cfg)
@@ -346,6 +347,24 @@ ipcMain.handle('admin:saveSettings', (_e, next: AdminSettings) => {
   writeSettings(next || {})
   logToFile('info', 'admin settings saved — relaunching to apply')
   // Config is parsed once at startup; a relaunch is the honest way to apply.
+  app.relaunch()
+  app.exit(0)
+  return { ok: true }
+})
+
+// Single-shot provision bundle: saves connection settings, clears pairing
+// state, then relaunches so the display re-pairs with the new server.
+ipcMain.handle('admin:applyProvision', (_e, bundle: {
+  mqttUrl: string
+  mqttUsername?: string
+  mqttPassword?: string
+  apiUrl?: string
+  regToken?: string
+}) => {
+  const current = readSettings()
+  writeSettings({ ...current, ...bundle })
+  writeRegistration({ registered: false })
+  logToFile('info', `provision bundle applied mqtt=${bundle.mqttUrl} — relaunching`)
   app.relaunch()
   app.exit(0)
   return { ok: true }

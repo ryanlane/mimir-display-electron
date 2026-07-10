@@ -17,6 +17,7 @@ export interface AdminSettings {
   mqttPassword?: string
   apiUrl?: string
   startFullscreen?: boolean
+  regToken?: string
 }
 
 const SETTINGS_ENV_MAP: Record<string, string> = {
@@ -25,7 +26,8 @@ const SETTINGS_ENV_MAP: Record<string, string> = {
   mqttUrl: 'MIMIR_MQTT_URL',
   mqttUsername: 'MIMIR_MQTT_USERNAME',
   mqttPassword: 'MIMIR_MQTT_PASSWORD',
-  apiUrl: 'MIMIR_API_URL'
+  apiUrl: 'MIMIR_API_URL',
+  regToken: 'MIMIR_REG_TOKEN'
 }
 
 function settingsPath(): string {
