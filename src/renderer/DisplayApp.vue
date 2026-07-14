@@ -33,6 +33,17 @@
       <div v-for="(line, i) in contentInfo" :key="i">{{ line }}</div>
     </div>
 
+    <!-- Artwork overlay — content details a channel attached to the render
+         command (e.g. mimir-source-metart's title/artist/etc). Shown
+         whenever present; not gated behind the debug info-overlay toggle. -->
+    <div v-if="overlayRows.length" class="artwork-overlay" :class="overlayPositionClass">
+      <div
+        v-for="(row, i) in overlayRows"
+        :key="i"
+        :class="`artwork-overlay-${row.variant}`"
+      >{{ row.text }}</div>
+    </div>
+
     <AdminPanel
       v-if="showAdmin"
       :content-summary="contentSummary"
@@ -48,13 +59,52 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import PairingSplash from './PairingSplash.vue'
 import AdminPanel from './AdminPanel.vue'
 
+interface ArtworkMetadata {
+  title?: string
+  artist?: string
+  date?: string
+  medium?: string
+  department?: string
+  culture?: string
+  overlay_position?: 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right' | 'top_center' | 'bottom_center'
+}
+
 interface ContentPayload {
   kind: 'image' | 'video'
   url: string
   assignmentId?: string
   loop?: boolean
   muted?: boolean
+  metadata?: ArtworkMetadata | null
 }
+
+// Same order/labels as the server-baked overlay (mimir-source-metart), so a
+// display looks the same whether the panel was baked into the image or is
+// rendered here client-side.
+const OVERLAY_FIELD_LABELS: Record<string, string> = {
+  date: 'Date',
+  medium: 'Medium',
+  department: 'Gallery',
+  culture: 'Culture'
+}
+
+const overlayRows = computed(() => {
+  const m = content.value?.metadata
+  if (!m) return []
+  const rows: Array<{ text: string; variant: 'title' | 'artist' | 'meta' }> = []
+  if (m.title) rows.push({ text: m.title, variant: 'title' })
+  if (m.artist) rows.push({ text: m.artist, variant: 'artist' })
+  for (const key of ['date', 'medium', 'department', 'culture'] as const) {
+    const value = m[key]
+    if (value) rows.push({ text: `${OVERLAY_FIELD_LABELS[key].toUpperCase()}   ${value}`, variant: 'meta' })
+  }
+  return rows
+})
+
+const overlayPositionClass = computed(() => {
+  const pos = content.value?.metadata?.overlay_position || 'bottom_left'
+  return `overlay-${pos.replace(/_/g, '-')}`
+})
 
 const content = ref<ContentPayload | null>(null)
 const error = ref<string | null>(null)
@@ -196,4 +246,34 @@ onBeforeUnmount(() => {
   font: 11.5px/1.6 ui-monospace, monospace; color: #b9c4cf;
   max-width: 60vw; word-break: break-all;
 }
+
+/* Artwork overlay — same look as the server-baked panel (mimir-source-metart's
+   _apply_overlay), rendered here client-side instead of baked into the pixels. */
+.artwork-overlay {
+  position: fixed; z-index: 30;
+  max-width: 60vw;
+  background: rgba(0, 0, 0, 0.65);
+  border-radius: 1.2vmin;
+  padding: 2.2vmin;
+  display: flex; flex-direction: column; gap: 0.6vmin;
+}
+.artwork-overlay-title {
+  font-size: 4.2vmin; font-weight: 700; color: #fff; line-height: 1.2;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.artwork-overlay-artist {
+  font-size: 2.6vmin; color: #aae6aa; margin-top: 0.4vmin;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.artwork-overlay-meta {
+  font-size: 2vmin; color: #bebebe; margin-top: 0.2vmin;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+
+.overlay-top-left      { top: 3vmin; left: 3vmin; }
+.overlay-top-right     { top: 3vmin; right: 3vmin; }
+.overlay-top-center    { top: 3vmin; left: 50%; transform: translateX(-50%); }
+.overlay-bottom-left   { bottom: 3vmin; left: 3vmin; }
+.overlay-bottom-right  { bottom: 3vmin; right: 3vmin; }
+.overlay-bottom-center { bottom: 3vmin; left: 50%; transform: translateX(-50%); }
 </style>

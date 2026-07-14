@@ -184,6 +184,11 @@ app.whenReady().then(async () => {
           return
         }
         const kind = detectContentKind(evt.delivery.contentType, evt.delivery.url)
+        // Optional content details (title/artist/etc) a channel attached to
+        // the render command — see mimir-source-metart's X-Artwork-Metadata
+        // header, threaded through by the server's MQTT publisher. Absent
+        // for channels that don't supply it; renderer just skips the overlay.
+        const metadata = (evt.raw && typeof evt.raw.metadata === 'object') ? evt.raw.metadata : null
         if (kind === 'video') {
           // Stream directly from the source — video is played, not
           // downloaded: the <video> element issues range requests itself,
@@ -193,14 +198,15 @@ app.whenReady().then(async () => {
             url: evt.delivery.url,
             assignmentId: evt.assignmentId,
             loop: evt.delivery.loop !== false,   // default: loop
-            muted: evt.delivery.muted !== false  // default: muted
+            muted: evt.delivery.muted !== false, // default: muted
+            metadata
           })
           break
         }
         try {
           const result = await fetchWithCache({ url: evt.delivery.url, etag: evt.delivery.etag, ttlSeconds: evt.delivery.ttlSeconds, maxBytes: cfg.cacheMaxImageBytes })
           await trimCache(cfg.cacheMaxBytes)
-          win.webContents.send('display:setContent', { kind: 'image', url: 'mimir-cache://' + encodeURIComponent(path.basename(result.filePath)), assignmentId: evt.assignmentId, cached: result.fromCache })
+          win.webContents.send('display:setContent', { kind: 'image', url: 'mimir-cache://' + encodeURIComponent(path.basename(result.filePath)), assignmentId: evt.assignmentId, cached: result.fromCache, metadata })
         } catch (e: any) {
           win.webContents.send('display:error', { message: 'Cache fetch failed: ' + e.message, assignmentId: evt.assignmentId })
         }
